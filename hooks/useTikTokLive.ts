@@ -1,7 +1,7 @@
 
 import { useState, useCallback, useRef } from 'react';
 import { io, Socket } from 'socket.io-client';
-import { ConnectionStatus, ChatMessage } from '../types';
+import { ConnectionStatus, ChatMessage, GiftNotification, TikTokGiftEvent } from '../types';
 
 // The backend server is expected to run on localhost:8081
 const TIKTOK_LIVE_BACKEND_URL = 'http://tiktok-server-production-e573.up.railway.app';
@@ -15,7 +15,10 @@ interface TikTokChatEvent {
   msgId: string;
 }
 
-export const useTikTokLive = (onMessage: (message: ChatMessage) => void) => {
+export const useTikTokLive = (
+    onMessage: (message: ChatMessage) => void,
+    onGift: (gift: Omit<GiftNotification, 'id'>) => void
+) => {
   const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>('idle');
   const [error, setError] = useState<string | null>(null);
   const socket = useRef<Socket | null>(null);
@@ -64,6 +67,17 @@ export const useTikTokLive = (onMessage: (message: ChatMessage) => void) => {
       onMessage(message);
     });
 
+    // Event: A new gift is received
+    socket.current.on('gift', (data: TikTokGiftEvent) => {
+        const gift: Omit<GiftNotification, 'id'> = {
+            nickname: data.nickname,
+            profilePictureUrl: data.profilePictureUrl,
+            giftName: data.giftName,
+            giftCount: data.giftCount,
+        };
+        onGift(gift);
+    });
+
     // Event: Stream has ended
     socket.current.on('streamEnd', () => {
         console.log('The Live stream has ended.');
@@ -86,7 +100,7 @@ export const useTikTokLive = (onMessage: (message: ChatMessage) => void) => {
         }
     });
 
-  }, [onMessage, connectionStatus]);
+  }, [onMessage, onGift, connectionStatus]);
 
   const disconnect = useCallback(() => {
     socket.current?.disconnect();

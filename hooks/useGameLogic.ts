@@ -138,11 +138,11 @@ const gameReducer = (state: GameState, action: GameAction): GameState => {
       return { ...state, chatMessages: newChatMessages };
     }
     case 'TICK_TIMER': {
-        if (!state.isRoundActive || state.roundWinners.length === 0) return state;
-        if (state.roundTimer <= 0) {
-            return { ...state, isRoundActive: false };
+        if (!state.isRoundActive) return state;
+        if (state.roundTimer > 0) {
+            return { ...state, roundTimer: state.roundTimer - 1 };
         }
-        return { ...state, roundTimer: state.roundTimer - 1 };
+        return state;
     }
     case 'END_ROUND':
         return { ...state, isRoundActive: false };
@@ -195,32 +195,43 @@ export const useGameLogic = () => {
     prepareNewDeck();
   }, [prepareNewDeck]);
 
+  // Starts timer as soon as round is active
   useEffect(() => {
     let timerId: number;
-    if (state.isRoundActive && state.roundWinners.length > 0) {
+    if (state.isRoundActive) {
       timerId = window.setInterval(() => {
         dispatch({ type: 'TICK_TIMER' });
       }, 1000);
     }
     return () => clearInterval(timerId);
-  }, [state.isRoundActive, state.roundWinners.length]);
+  }, [state.isRoundActive]);
   
+  // Ends round when timer hits 0 or max winners is reached
   useEffect(() => {
       if (state.isRoundActive && (state.roundTimer <= 0 || state.roundWinners.length >= MAX_WINNERS_PER_ROUND)) {
           dispatch({ type: 'END_ROUND' });
       }
   }, [state.roundTimer, state.roundWinners.length, state.isRoundActive]);
 
+  // Shows winner modal when a round ends
   useEffect(() => {
-      if (!state.isRoundActive && state.round > 0 && !state.isGameOver && !state.showWinnerModal) {
+      if (!state.isRoundActive && state.round > 0 && !state.isGameOver) {
           dispatch({ type: 'SHOW_WINNER_MODAL' });
+      }
+  }, [state.isRoundActive, state.round, state.isGameOver]);
+
+  // Hides modal and proceeds to next round after a delay
+  useEffect(() => {
+      if (state.showWinnerModal) {
           const timeoutId = setTimeout(() => {
               dispatch({ type: 'HIDE_WINNER_MODAL' });
-              nextRound();
+              if (!state.isGameOver) {
+                  nextRound();
+              }
           }, WINNER_MODAL_TIMEOUT_MS);
           return () => clearTimeout(timeoutId);
       }
-  }, [state.isRoundActive, state.round, state.isGameOver, state.showWinnerModal, nextRound]);
+  }, [state.showWinnerModal, state.isGameOver, nextRound]);
 
 
   return { state, startGame, resetGame, processComment };
